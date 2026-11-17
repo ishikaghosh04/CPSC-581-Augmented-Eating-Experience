@@ -1,4 +1,4 @@
-// Pass It On - Part 3: Dish-level lantern (food waste)
+// Pass It On - Dish-level lantern and shared-bite glow
 // Pin map follows the team contract.
 #include <Arduino.h>
 #include <Servo.h>
@@ -18,22 +18,36 @@ const int CLEAN_PCT = 5;     // at or below this, the dish counts as clean
 const int REARM_PCT = 15;    // must rise above this (a refill) to celebrate again
 bool celebrated = false;
 
+// Keep polling bowls while the existing lantern waits or plays a chime.
+void serviceSharedGlow();
+void companionGlow(int pct);
+
+void waitWithGlow(unsigned long duration) {
+  const unsigned long start = millis();
+  while (millis() - start < duration) {
+    serviceSharedGlow();
+    delay(1);
+  }
+}
+
 // ---------------- Buzzer ----------------
 // Wokwi's buzzer only sounds when the pin toggles quickly, so we toggle at
 // about 2 kHz. On real hardware an active buzzer sounds with this too.
 // Do not use tone(): it takes Timer2 and breaks PWM on D3 and D11.
 void beep(unsigned int ms) {
-  unsigned long end = millis() + ms;
-  while (millis() < end) {
+  const unsigned long start = millis();
+  uint8_t cycles = 0;
+  while (millis() - start < ms) {
     digitalWrite(BUZZER, HIGH); delayMicroseconds(250);
     digitalWrite(BUZZER, LOW);  delayMicroseconds(250);
+    if (++cycles % 8 == 0) serviceSharedGlow();
   }
 }
 
 void chime() {                       // clean-dish celebration (blocks ~0.7 s)
   for (int i = 0; i < 3; i++) {
     beep(120);
-    delay(120);
+    waitWithGlow(120);
   }
 }
 
@@ -48,7 +62,7 @@ float readDistanceCm() {
 
 float medianDistance() {                         // median of 5 readings
   float r[5];
-  for (int i = 0; i < 5; i++) { r[i] = readDistanceCm(); delay(10); }
+  for (int i = 0; i < 5; i++) { r[i] = readDistanceCm(); waitWithGlow(10); }
   for (int i = 0; i < 4; i++)
     for (int j = 0; j < 4 - i; j++)
       if (r[j] > r[j + 1]) { float t = r[j]; r[j] = r[j + 1]; r[j + 1] = t; }
@@ -74,9 +88,11 @@ void showLevel(int pct) {
 }
 
 // Lantern: warm and bright when plenty is left, softens as the dish empties
-void lanternGlow(int pct) {
-  analogWrite(RGB_R, map(pct, 0, 100, 40, 255));
-  analogWrite(RGB_G, map(pct, 0, 100, 15, 110));
+void lanternGlow(int pct, int pulse = 0) {
+  const int red = map(pct, 0, 100, 40, 255);
+  const int green = map(pct, 0, 100, 15, 110);
+  analogWrite(RGB_R, map(pulse, 0, 100, red, 255));
+  analogWrite(RGB_G, map(pulse, 0, 100, green, 220));
   analogWrite(RGB_B, 0);
 }
 
@@ -96,9 +112,7 @@ void checkCalibrate() {
   last = now;
 }
 
-// ================= STUBS FOR TEAMMATES' PARTS =================
-// Placeholders so the merged sketch compiles and the contract names exist.
-// Each owner replaces the body of their own function(s). Keep the signatures.
+// ---------------- Shared-bite glow ----------------
 
 // Pins from the team contract (not used by Part 3, listed to avoid clashes)
 const uint8_t SERVO_PIN = 9;                 // companion servo
@@ -106,16 +120,89 @@ const uint8_t ROULETTE_BTN = 10;             // roulette button
 const uint8_t BOWL_PIN[2] = {A0, A1};        // photoresistors, bowl A / bowl B
 const uint8_t DINER_LED[2] = {A2, A3};       // diner LEDs A / B
 
-// Shared-bite glow: true if bowl i is currently lifted
+const uint8_t SOLO_SWITCH = A4;              // LOW = solo (bowl A only)
+const int LIFT_ADC = 420;                    // brighter: analog value falls
+const int REST_ADC = 580;                    // darker: analog value rises
+const unsigned long STABLE_MS = 45;
+const unsigned long SYNC_MS = 20000;
+const unsigned long PULSE_MS = 900;
+
+struct Bowl {
+  bool lifted;
+  bool candidate;
+  unsigned long candidateSince;
+  bool pending;
+  unsigned long liftedAt;
+};
+
+Bowl bowls[2] = {};
+bool soloMode = false;
+bool pulseActive = false;
+unsigned long pulseStarted = 0;
+int dishPercent = 0;
+
+// Contract: read the latest debounced state.
 bool bowlLifted(int i) {
-  // In Wokwi, more light produces a lower analog reading.
-  return analogRead(BOWL_PIN[i]) < 450;
+  return i >= 0 && i < 2 && bowls[i].lifted;
 }
 
-// Shared-bite glow: warm RGB pulse when bowls lift within the sync window
+// Contract: request a warm pulse without blocking.
 void pulseShared() {
-  // TODO: pulse the centerpiece RGB (D3/D5/D6)
-  Serial.println("[stub] pulseShared()");
+  pulseStarted = millis();
+  pulseActive = true;
+  Serial.println(soloMode ? "Solo glow" : "Shared glow");
+}
+
+void serviceSharedGlow() {
+  const unsigned long now = millis();
+  const bool solo = digitalRead(SOLO_SWITCH) == LOW;
+  if (solo != soloMode) {
+    soloMode = solo;
+    Serial.println(soloMode ? "Mode: SOLO" : "Mode: GROUP");
+    for (Bowl &bowl : bowls) bowl.pending = false;
+  }
+
+  for (int i = 0; i < 2; ++i) {
+    Bowl &bowl = bowls[i];
+    const int light = analogRead(BOWL_PIN[i]);
+    const bool sensedLift = bowl.lifted ? light < REST_ADC : light <= LIFT_ADC;
+    if (sensedLift != bowl.candidate) {
+      bowl.candidate = sensedLift;
+      bowl.candidateSince = now;
+    }
+    if (bowl.candidate != bowl.lifted && now - bowl.candidateSince >= STABLE_MS) {
+      bowl.lifted = bowl.candidate;
+      if (bowl.lifted) {
+        Serial.println(i == 0 ? "Bowl A lifted" : "Bowl B lifted");
+        Serial.println(now);
+
+        bowl.liftedAt = now;
+        bowl.pending = !soloMode;
+        if (soloMode && i == 0) pulseShared();
+      }
+    }
+    if (bowl.pending && now - bowl.liftedAt >= SYNC_MS) bowl.pending = false;
+  }
+
+  if (bowls[0].pending && bowls[1].pending) {
+    for (Bowl &bowl : bowls) bowl.pending = false;
+    pulseShared();
+  }
+
+  const unsigned long elapsed = millis() - pulseStarted;
+  if (pulseActive && elapsed >= PULSE_MS) pulseActive = false;
+  int strength = 0;
+  if (pulseActive) {
+    const unsigned long attack = 180;
+    strength = elapsed < attack
+        ? elapsed * 100 / attack
+        : (PULSE_MS - elapsed) * 100 / (PULSE_MS - attack);
+  }
+  if (pulseActive) {
+    lanternGlow(dishPercent, strength);
+  }else {
+    companionGlow(dishPercent);
+  }
 }
 
 
@@ -390,6 +477,13 @@ void setup() {
   pinMode(RGB_R, OUTPUT); pinMode(RGB_G, OUTPUT); pinMode(RGB_B, OUTPUT);
   pinMode(BUZZER, OUTPUT);
   pinMode(CAL_BTN, INPUT_PULLUP);
+  pinMode(SOLO_SWITCH, INPUT_PULLUP);
+  soloMode = digitalRead(SOLO_SWITCH) == LOW;
+  for (int i = 0; i < 2; ++i) {
+    pinMode(BOWL_PIN[i], INPUT);
+    const bool lifted = analogRead(BOWL_PIN[i]) <= LIFT_ADC;
+    bowls[i] = {lifted, lifted, millis(), false, 0};
+  }
   Serial.begin(9600);
   beginCompanion();
   Serial.println("Dish-level lantern ready");
@@ -400,13 +494,14 @@ void loop() {
   checkCalibrate();
 
   int pct = readDishLevel();
+  dishPercent = pct;
   showLevel(pct);
-  companionGlow(pct);
+  serviceSharedGlow();
 
   if (pct <= CLEAN_PCT && !celebrated) { chime(); celebrated = true; }
   if (pct > REARM_PCT) celebrated = false;       // re-arm after a refill
 
   Serial.print("level%: ");
   Serial.println(pct);
-  delay(150);
+  waitWithGlow(150);
 }
