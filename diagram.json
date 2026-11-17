@@ -22,7 +22,10 @@
 
     { "type": "wokwi-resistor", "id": "rR", "top": 200, "left": 420, "attrs": { "value": "220" } },
     { "type": "wokwi-resistor", "id": "rG", "top": 220, "left": 420, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "rB", "top": 240, "left": 420, "attrs": { "value": "220" } }
+    { "type": "wokwi-resistor", "id": "rB", "top": 240, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-servo", "id": "buddy", "top": 0, "left": 600, "attrs": {} },
+    { "type": "wokwi-photoresistor-sensor", "id": "bowlA", "top": 160, "left": 600, "attrs": { "lux": "10" } },
+    { "type": "wokwi-photoresistor-sensor", "id": "bowlB", "top": 280, "left": 600, "attrs": { "lux": "10" } }
   ],
   "connections": [
     ["uno:5V", "ultrasonic:VCC", "red", []],
@@ -77,7 +80,18 @@
     ["btnCal:2.l", "uno:GND.3", "black", []],
 
     ["uno:13", "buzzer:2", "gold", []],
-    ["buzzer:1", "uno:GND.3", "black", []]
+    ["buzzer:1", "uno:GND.3", "black", []],
+    ["buddy:PWM", "uno:9", "orange", []],
+    ["buddy:V+", "uno:5V", "red", []],
+    ["buddy:GND", "uno:GND.1", "black", []],
+
+    ["bowlA:VCC", "uno:5V", "red", []],
+    ["bowlA:GND", "uno:GND.1", "black", []],
+    ["bowlA:AO", "uno:A0", "green", []],
+
+    ["bowlB:VCC", "uno:5V", "red", []],
+    ["bowlB:GND", "uno:GND.1", "black", []],
+    ["bowlB:AO", "uno:A1", "blue", []]
   ],
   "dependencies": {}
 }
