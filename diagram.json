@@ -1,521 +1,101 @@
 {
   "version": 1,
-  "author": "Pass It On - dish-level lantern and shared-bite glow",
+  "author": "Pass It On",
   "editor": "wokwi",
   "parts": [
-    {
-      "type": "wokwi-arduino-uno",
-      "id": "uno",
-      "top": 0,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-hc-sr04",
-      "id": "ultrasonic",
-      "top": -140,
-      "left": 40,
-      "attrs": {
-        "distance": "10"
-      }
-    },
-    {
-      "type": "wokwi-74hc595",
-      "id": "sr",
-      "top": -130,
-      "left": 280,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-led-bar-graph",
-      "id": "bar",
-      "top": -250,
-      "left": 280,
-      "attrs": {
-        "color": "orange"
-      }
-    },
-    {
-      "type": "wokwi-rgb-led",
-      "id": "rgb",
-      "top": 240,
-      "left": 320,
-      "attrs": {
-        "common": "cathode"
-      }
-    },
-    {
-      "type": "wokwi-pushbutton",
-      "id": "btnCal",
-      "top": 290,
-      "left": 80,
-      "attrs": {
-        "color": "green",
-        "label": "CAL"
-      }
-    },
-    {
-      "type": "wokwi-buzzer",
-      "id": "buzzer",
-      "top": 290,
-      "left": 180,
-      "attrs": {
-        "volume": "0.1"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r1",
-      "top": -60,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r2",
-      "top": -40,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r3",
-      "top": -20,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r4",
-      "top": 0,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r5",
-      "top": 20,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r6",
-      "top": 40,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r7",
-      "top": 60,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r8",
-      "top": 80,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "rR",
-      "top": 200,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "rG",
-      "top": 220,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "rB",
-      "top": 240,
-      "left": 420,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-photoresistor-sensor",
-      "id": "bowlA",
-      "top": 65,
-      "left": -225,
-      "attrs": {
-        "lux": "10"
-      }
-    },
-    {
-      "type": "wokwi-photoresistor-sensor",
-      "id": "bowlB",
-      "top": 155,
-      "left": -225,
-      "attrs": {
-        "lux": "10"
-      }
-    },
-    {
-      "type": "wokwi-slide-switch",
-      "id": "mode",
-      "top": 285,
-      "left": -130,
-      "attrs": {
-        "bounce": "0",
-        "value": "1"
-      }
-    }
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "ultrasonic", "top": -140, "left": 40, "attrs": { "distance": "10" } },
+    { "type": "wokwi-74hc595", "id": "sr", "top": -130, "left": 280, "attrs": {} },
+    { "type": "wokwi-led-bar-graph", "id": "bar", "top": -250, "left": 280, "attrs": { "color": "orange" } },
+    { "type": "wokwi-rgb-led", "id": "rgb", "top": 240, "left": 320, "attrs": { "common": "cathode" } },
+    { "type": "wokwi-pushbutton", "id": "btnCal", "top": 290, "left": 80, "attrs": { "color": "green", "label": "CAL" } },
+    { "type": "wokwi-buzzer", "id": "buzzer", "top": 290, "left": 180, "attrs": { "volume": "0.1" } },
+
+    { "type": "wokwi-resistor", "id": "r1", "top": -60, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": -40, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r3", "top": -20, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r4", "top": 0, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r5", "top": 20, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r6", "top": 40, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r7", "top": 60, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r8", "top": 80, "left": 420, "attrs": { "value": "220" } },
+
+    { "type": "wokwi-resistor", "id": "rR", "top": 200, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "rG", "top": 220, "left": 420, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "rB", "top": 240, "left": 420, "attrs": { "value": "220" } },
+
+    { "type": "wokwi-servo", "id": "buddy", "top": 0, "left": 600, "attrs": {} },
+    { "type": "wokwi-photoresistor-sensor", "id": "bowlA", "top": 160, "left": 600, "attrs": { "lux": "10" } },
+    { "type": "wokwi-photoresistor-sensor", "id": "bowlB", "top": 280, "left": 600, "attrs": { "lux": "10" } },
+    { "type": "wokwi-slide-switch", "id": "mode", "top": 285, "left": -130, "attrs": { "bounce": "0", "value": "1" } }
   ],
   "connections": [
-    [
-      "uno:5V",
-      "ultrasonic:VCC",
-      "red",
-      []
-    ],
-    [
-      "uno:GND.1",
-      "ultrasonic:GND",
-      "black",
-      []
-    ],
-    [
-      "uno:2",
-      "ultrasonic:TRIG",
-      "green",
-      []
-    ],
-    [
-      "uno:4",
-      "ultrasonic:ECHO",
-      "blue",
-      []
-    ],
-    [
-      "uno:5V",
-      "sr:VCC",
-      "red",
-      []
-    ],
-    [
-      "uno:5V",
-      "sr:MR",
-      "red",
-      []
-    ],
-    [
-      "uno:GND.2",
-      "sr:GND",
-      "black",
-      []
-    ],
-    [
-      "uno:GND.2",
-      "sr:OE",
-      "black",
-      []
-    ],
-    [
-      "uno:7",
-      "sr:DS",
-      "green",
-      []
-    ],
-    [
-      "uno:8",
-      "sr:STCP",
-      "yellow",
-      []
-    ],
-    [
-      "uno:12",
-      "sr:SHCP",
-      "blue",
-      []
-    ],
-    [
-      "sr:Q0",
-      "r1:1",
-      "orange",
-      []
-    ],
-    [
-      "sr:Q1",
-      "r2:1",
-      "orange",
-      []
-    ],
-    [
-      "sr:Q2",
-      "r3:1",
-      "orange",
-      []
-    ],
-    [
-      "sr:Q3",
-      "r4:1",
-      "orange",
-      []
-    ],
-    [
-      "sr:Q4",
-      "r5:1",
-      "orange",
-      []
-    ],
-    [
-      "sr:Q5",
-      "r6:1",
-      "orange",
-      []
-    ],
-    [
-      "sr:Q6",
-      "r7:1",
-      "orange",
-      []
-    ],
-    [
-      "sr:Q7",
-      "r8:1",
-      "orange",
-      []
-    ],
-    [
-      "r1:2",
-      "bar:A1",
-      "orange",
-      []
-    ],
-    [
-      "r2:2",
-      "bar:A2",
-      "orange",
-      []
-    ],
-    [
-      "r3:2",
-      "bar:A3",
-      "orange",
-      []
-    ],
-    [
-      "r4:2",
-      "bar:A4",
-      "orange",
-      []
-    ],
-    [
-      "r5:2",
-      "bar:A5",
-      "orange",
-      []
-    ],
-    [
-      "r6:2",
-      "bar:A6",
-      "orange",
-      []
-    ],
-    [
-      "r7:2",
-      "bar:A7",
-      "orange",
-      []
-    ],
-    [
-      "r8:2",
-      "bar:A8",
-      "orange",
-      []
-    ],
-    [
-      "bar:C1",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bar:C2",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bar:C3",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bar:C4",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bar:C5",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bar:C6",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bar:C7",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bar:C8",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "uno:3",
-      "rR:1",
-      "red",
-      []
-    ],
-    [
-      "uno:5",
-      "rG:1",
-      "green",
-      []
-    ],
-    [
-      "uno:6",
-      "rB:1",
-      "blue",
-      []
-    ],
-    [
-      "rR:2",
-      "rgb:R",
-      "red",
-      []
-    ],
-    [
-      "rG:2",
-      "rgb:G",
-      "green",
-      []
-    ],
-    [
-      "rB:2",
-      "rgb:B",
-      "blue",
-      []
-    ],
-    [
-      "rgb:COM",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "uno:11",
-      "btnCal:1.l",
-      "purple",
-      []
-    ],
-    [
-      "btnCal:2.l",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "uno:13",
-      "buzzer:2",
-      "gold",
-      []
-    ],
-    [
-      "buzzer:1",
-      "uno:GND.3",
-      "black",
-      []
-    ],
-    [
-      "bowlA:VCC",
-      "uno:5V",
-      "red",
-      []
-    ],
-    [
-      "bowlA:GND",
-      "uno:GND.1",
-      "black",
-      []
-    ],
-    [
-      "bowlA:AO",
-      "uno:A0",
-      "green",
-      []
-    ],
-    [
-      "bowlB:VCC",
-      "uno:5V",
-      "red",
-      []
-    ],
-    [
-      "bowlB:GND",
-      "uno:GND.1",
-      "black",
-      []
-    ],
-    [
-      "bowlB:AO",
-      "uno:A1",
-      "green",
-      []
-    ],
-    [
-      "mode:1",
-      "uno:GND.1",
-      "black",
-      []
-    ],
-    [
-      "mode:2",
-      "uno:A4",
-      "purple",
-      []
-    ]
+    ["uno:5V", "ultrasonic:VCC", "red", []],
+    ["uno:GND.1", "ultrasonic:GND", "black", []],
+    ["uno:2", "ultrasonic:TRIG", "green", []],
+    ["uno:4", "ultrasonic:ECHO", "blue", []],
+
+    ["uno:5V", "sr:VCC", "red", []],
+    ["uno:5V", "sr:MR", "red", []],
+    ["uno:GND.2", "sr:GND", "black", []],
+    ["uno:GND.2", "sr:OE", "black", []],
+    ["uno:7", "sr:DS", "green", []],
+    ["uno:8", "sr:STCP", "yellow", []],
+    ["uno:12", "sr:SHCP", "blue", []],
+
+    ["sr:Q0", "r1:1", "orange", []],
+    ["sr:Q1", "r2:1", "orange", []],
+    ["sr:Q2", "r3:1", "orange", []],
+    ["sr:Q3", "r4:1", "orange", []],
+    ["sr:Q4", "r5:1", "orange", []],
+    ["sr:Q5", "r6:1", "orange", []],
+    ["sr:Q6", "r7:1", "orange", []],
+    ["sr:Q7", "r8:1", "orange", []],
+
+    ["r1:2", "bar:A1", "orange", []],
+    ["r2:2", "bar:A2", "orange", []],
+    ["r3:2", "bar:A3", "orange", []],
+    ["r4:2", "bar:A4", "orange", []],
+    ["r5:2", "bar:A5", "orange", []],
+    ["r6:2", "bar:A6", "orange", []],
+    ["r7:2", "bar:A7", "orange", []],
+    ["r8:2", "bar:A8", "orange", []],
+
+    ["bar:C1", "uno:GND.3", "black", []],
+    ["bar:C2", "uno:GND.3", "black", []],
+    ["bar:C3", "uno:GND.3", "black", []],
+    ["bar:C4", "uno:GND.3", "black", []],
+    ["bar:C5", "uno:GND.3", "black", []],
+    ["bar:C6", "uno:GND.3", "black", []],
+    ["bar:C7", "uno:GND.3", "black", []],
+    ["bar:C8", "uno:GND.3", "black", []],
+
+    ["uno:3", "rR:1", "red", []],
+    ["uno:5", "rG:1", "green", []],
+    ["uno:6", "rB:1", "blue", []],
+    ["rR:2", "rgb:R", "red", []],
+    ["rG:2", "rgb:G", "green", []],
+    ["rB:2", "rgb:B", "blue", []],
+    ["rgb:COM", "uno:GND.3", "black", []],
+
+    ["uno:11", "btnCal:1.l", "purple", []],
+    ["btnCal:2.l", "uno:GND.3", "black", []],
+    ["uno:13", "buzzer:2", "gold", []],
+    ["buzzer:1", "uno:GND.3", "black", []],
+
+    ["buddy:PWM", "uno:9", "orange", []],
+    ["buddy:V+", "uno:5V", "red", []],
+    ["buddy:GND", "uno:GND.1", "black", []],
+
+    ["bowlA:VCC", "uno:5V", "red", []],
+    ["bowlA:GND", "uno:GND.1", "black", []],
+    ["bowlA:AO", "uno:A0", "green", []],
+    ["bowlB:VCC", "uno:5V", "red", []],
+    ["bowlB:GND", "uno:GND.1", "black", []],
+    ["bowlB:AO", "uno:A1", "blue", []],
+
+    ["mode:1", "uno:GND.1", "black", []],
+    ["mode:2", "uno:A4", "purple", []]
   ],
   "dependencies": {}
 }

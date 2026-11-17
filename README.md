@@ -19,7 +19,8 @@ This repository is an Arduino Uno prototype, simulated in Wokwi and built with P
 |---|---|
 | Dish-level lantern | Implemented in `src/main.cpp` |
 | Shared-bite glow | Stub (`bowlLifted`, `pulseShared`) |
-| Companion servo | Stub (`companionNod`) |
+| Bowl-lift detection | Implemented in `bowlLifted(int i)` |
+| Pace-matching companion | Implemented in `src/main.cpp` (`beginCompanion`, `updateCompanion`, `companionGlow`) |
 | Leftover Roulette | Stub (`spinRoulette`) |
 
 ## Pin map (team contract)
@@ -43,10 +44,10 @@ The servo library disables PWM on pins 9 and 10, so the RGB LED stays off those 
 | Function | Returns / does |
 |---|---|
 | `int readDishLevel()` | Dish fullness, 0 to 100 |
-| `bool bowlLifted(int i)` | True if bowl `i` is lifted |
+| `bool bowlLifted(int i)` | True when bowl `i` is lifted; implemented |
 | `void showLevel(int pct)` | Shows the level on the LED bar |
-| `void pulseShared()` | Warm centerpiece pulse |
-| `void companionNod()` | Servo nod, paced to the slowest eater |
+| `void pulseShared()` | Warm centerpiece pulse; shared-bite implementation is incomplete |
+| `void companionNod()` | Servo nod; pace matching is implemented |
 | `void spinRoulette()` | Spins the roulette and picks who takes leftovers |
 
 ## Project layout
@@ -109,3 +110,89 @@ Defaults are 5 cm (full) and 30 cm (empty). Replace them with measurements from 
 | Wokwi cannot find the firmware | The build did not finish, or the paths in `wokwi.toml` are wrong. Check that `.pio/build/uno/firmware.hex` exists. |
 | A wire or part is missing in the simulator | A pin name in `diagram.json` is wrong. Hover over the pin in Wokwi to see its exact name. |
 | No sound from the buzzer in the simulator | Rebuild, and make sure the volume is on. The chime must toggle the pin; a steady HIGH is silent in Wokwi. |
+
+## Pace-Matching Companion
+
+The companion behaviour is implemented in `src/main.cpp`. A successful build confirms that the Arduino code compiles; the checks below are Wokwi test instructions, not documented test results.
+
+### Behaviour
+
+- **Sleeping:** Before the first detected bowl lift, the servo rests at 90 degrees and the RGB LED uses a dim, four-second warm breathing cycle.
+- **Wake-up:** The first lift detected after `SENSOR_DEBOUNCE` moves the servo to 110 degrees for 350 ms, then returns it to 90 degrees. The serial monitor prints `A bowl lifted` or `B bowl lifted`, followed by `Companion wakes`.
+- **Pacing:** In the default two-diner mode, the companion uses the longest measured interval among participating diners, with a 3000 ms minimum. It estimates an interval from bowl lifts and nudges toward a slower eater. A second lift within 400 ms of the previous lift is ignored.
+- **Amber cue:** After both diners have usable intervals, the RGB LED turns soft amber if the slower interval is more than 1.5 times the faster interval. The servo continues following the longer interval.
+- **Conversation pause:** If one participating diner has been idle for 20 seconds, the companion stops regular nods, holds the servo at 65 degrees, prints `Waiting for the table`, and gives the RGB LED a softer warm pulse.
+- **Playful wiggle and chime:** When all participating diners have been idle for 45 seconds, the companion alternates the servo between 75 and 105 degrees for 1.2 seconds, toggles the buzzer for 80 ms, and prints `Playful wiggle + chime`. It performs this wiggle once until another bite resets the condition.
+- **Resuming:** When no diner is paused, the companion returns the servo to 90 degrees, resumes the normal pace, and prints `Eating resumes`.
+- **Solo mode:** Set `SOLO_MODE` to `true` to read only bowl A and nod immediately after each detected lift. It is currently `false`, so the default is two-diner mode.
+
+The dish-clean threshold is evaluated separately: when the dish level is 5% or below, `companionGlow()` gives control to the dish lantern instead of the companion breathing or amber behaviour.
+
+### Relevant hardware and pins
+
+| Item | Pin or value |
+|---|---|
+| Companion servo | D9, 90 degrees at rest |
+| Bowl A photoresistor | A0 |
+| Bowl B photoresistor | A1 |
+| Centerpiece RGB LED | D3 (R), D5 (G), D6 (B) |
+| Active buzzer | D13 |
+
+The Wokwi circuit identifies the servo as `buddy`, bowl A as `bowlA`, bowl B as `bowlB`, and the RGB LED as `rgb`.
+
+### Wokwi test instructions
+
+1. Build the project and start the Wokwi simulator.
+2. Open the serial monitor at 9600 baud.
+3. Find the `buddy` servo, `bowlA` and `bowlB` photoresistor sensors, and `rgb` LED.
+4. In each sensor, change lux from `10` to `400`, hold for about one second, then change it back to `10` and hold for about one second. The code considers a reading below 450 as a lift.
+5. Watch the serial monitor and the servo/RGB LED after each lift.
+
+This `10 -> 400 -> 10` sequence is needed because 10 lux initially represents the bowl in place, while 400 lux represents a lifted bowl. One sensor change from `10` to `400` alone changes the raw state, but the code counts the stable change back to the 10 lux lifted state as a bowl lift.
+
+### Test table
+
+| Action | Expected servo movement | Expected light | Sound / serial output |
+|---|---:|---|---|
+| Start simulator; no bowl lift | Rest at 90 degrees | Dim warm breathing | `Companion ready`, then `Dish-level lantern ready` |
+| Lift bowl A (`10 -> 400 -> 10`, about 1 second per position) | 110 degrees for 350 ms, then 90 | Normal dish glow or companion state | `A bowl lifted`, then `Companion wakes` |
+| Lift bowl B the same way | 110 degrees for 350 ms, then 90 | Amber may appear after both diners have usable intervals | `B bowl lifted` |
+| Leave one diner idle for 20 seconds | Moves or holds at 65 degrees | Soft warm pulse | `Waiting for the table` |
+| Leave all participating diners idle for 45 seconds | Alternates 75/105 degrees for 1.2 seconds | Waiting pulse remains if paused | 80 ms buzzer toggle and `Playful wiggle + chime` |
+| Resume bowl lifts after a pause | Returns to 90 degrees, then resumes measured nods | Normal pace or amber cue | `Eating resumes`, bowl lift message |
+| Set `SOLO_MODE = true`, rebuild, and lift bowl A | Nods immediately with each detected lift | Amber pacing comparison is disabled | `A bowl lifted` |
+
+These are the expected state transitions from the implementation. The 20-second, 45-second, and interval transitions depend on timing and must be watched in the simulator to verify.
+
+### Adjustable settings
+
+| Setting | Current value | Effect |
+|---|---:|---|
+| `SOLO_MODE` | `false` | `false` reads bowls A and B; `true` reads only bowl A |
+| `DEFAULT_INTERVAL` | 6000 ms | Starting interval used if no measured interval is available |
+| `WAIT_AFTER` | 20000 ms | Idle time that enters conversation-pause state |
+| `PLAY_AFTER` | 45000 ms | Idle time that allows the playful wiggle |
+| `SENSOR_DEBOUNCE` | 80 ms | Stability time required before accepting a sensor change |
+| Lift threshold | Analog reading below 450 | The `10` lux state is lifted; `400` lux is the bowl-down state |
+| Bite guard | 400 ms | Ignores repeated lift transitions inside this window |
+| Group pace floor | 3000 ms | Minimum regular companion nod interval |
+| Amber ratio | 1.5 times faster interval | Uses the amber cue when the slower diner is that much slower |
+
+### Integration considerations
+
+- The `Servo` library claims servo use on D9 and disables PWM on D9/D10. The RGB LED uses D3, D5, and D6, and should not be moved to D9 or D10.
+- `companionGlow()` and the existing dish lantern both write to D3/D5/D6. Companion behaviour replaces dish warmth while the dish is above 5%, except when pace is equal and `lanternGlow(pct)` is used.
+- `beep()` and the dish chime share D13. The playful wiggle calls `beep(80)`; the companion must therefore coexist with `chime()` without changing shared buzzer ownership.
+- Bowl-lift detection uses `analogRead()`. The same sensor path does not currently call `pulseShared()`, so the shared-bite RGB pulse is not implemented.
+- The companion servo and Leftover Roulette both use servo-related hardware patterns. Roulette remains a stub and must not be merged into D9 without coordination.
+
+### Known companion limitations
+
+- The bowl sensors are analog lux simulations with a fixed threshold of 450; real bowls may need a calibrated threshold or debounced analog range.
+- Bowl-lift intervals depend on the 400 ms duplicate guard and 80 ms sensor debounce, so very quick or noisy movements may be missed.
+- Only one interval estimate is maintained for each diner, using a 70/30 weighted moving average after the first measured interval.
+- After the 20-second pause threshold, existing intervals are reset to the default if a later lift is detected after `WAIT_AFTER`.
+- The 45-second wiggle triggers once per `playfulDone` reset; a new bite sets `playfulDone = false`.
+- `beep()` and the dish-level `chime()` use blocking delays, and `medianDistance()` also blocks briefly. This can delay servo and serial timing.
+- Calibration and companion state remain in memory and are lost after reset.
+- The shared-bite pulse, diner LEDs, roulette button, and Leftover Roulette are still stubs.

@@ -1,7 +1,7 @@
 // Pass It On - Dish-level lantern and shared-bite glow
 // Pin map follows the team contract.
 #include <Arduino.h>
-
+#include <Servo.h>
 // ---- Pins (team contract) ----
 const uint8_t TRIG = 2, ECHO = 4;
 const uint8_t RGB_R = 3, RGB_G = 5, RGB_B = 6;
@@ -20,6 +20,7 @@ bool celebrated = false;
 
 // Keep polling bowls while the existing lantern waits or plays a chime.
 void serviceSharedGlow();
+void companionGlow(int pct);
 
 void waitWithGlow(unsigned long duration) {
   const unsigned long start = millis();
@@ -197,13 +198,210 @@ void serviceSharedGlow() {
         ? elapsed * 100 / attack
         : (PULSE_MS - elapsed) * 100 / (PULSE_MS - attack);
   }
-  lanternGlow(dishPercent, strength);
+  if (pulseActive) {
+    lanternGlow(dishPercent, strength);
+  }else {
+    companionGlow(dishPercent);
+  }
 }
 
-// Companion: servo nod, paced to the slowest eater
+
+  // ---------------- Pace-matching companion ----------------
+Servo companionServo;
+
+// false = two diners; true = solo demo using bowl A
+const bool SOLO_MODE = false;
+
+const unsigned long DEFAULT_INTERVAL = 6000;
+const unsigned long WAIT_AFTER = 20000;
+const unsigned long PLAY_AFTER = 45000;
+const unsigned long SENSOR_DEBOUNCE = 80;
+
+struct DinerState {
+  bool rawLifted = false;
+  bool stableLifted = false;
+  bool started = false;
+  bool hasInterval = false;
+
+  unsigned long rawChangedAt = 0;
+  unsigned long lastBite = 0;
+  unsigned long averageInterval = DEFAULT_INTERVAL;
+};
+
+DinerState diners[2];
+
+bool mealStarted = false;
+bool waiting = false;
+bool playfulDone = false;
+
+unsigned long lastNod = 0;
+unsigned long movementStarted = 0;
+
+// 0 = still, 1 = nodding, 2 = playful wiggle
+uint8_t movement = 0;
+
 void companionNod() {
-  // TODO: move the servo on D9
-  Serial.println("[stub] companionNod()");
+  movement = 1;
+  movementStarted = millis();
+  lastNod = movementStarted;
+  companionServo.write(110);
+}
+
+void beginCompanion() {
+  companionServo.attach(SERVO_PIN);
+  companionServo.write(90);
+
+  // Read the starting positions so an already exposed sensor
+  // does not immediately create a bowl-lift event.
+  for (int i = 0; i < 2; i++) {
+    diners[i].rawLifted = bowlLifted(i);
+    diners[i].stableLifted = diners[i].rawLifted;
+    diners[i].rawChangedAt = millis();
+  }
+
+  Serial.println(F("Companion ready"));
+}
+
+void updateCompanion() {
+  const unsigned long now = millis();
+  const int dinerCount = SOLO_MODE ? 1 : 2;
+
+  bool biteDetected = false;
+  bool someonePaused = false;
+  bool everyonePaused = true;
+  unsigned long tableInterval = 0;
+
+  for (int i = 0; i < dinerCount; i++) {
+    DinerState &diner = diners[i];
+    const bool lifted = bowlLifted(i);
+
+    // Wait for a stable sensor change.
+    if (lifted != diner.rawLifted) {
+      diner.rawLifted = lifted;
+      diner.rawChangedAt = now;
+    }
+
+    if (diner.rawLifted != diner.stableLifted &&
+        now - diner.rawChangedAt >= SENSOR_DEBOUNCE) {
+      diner.stableLifted = diner.rawLifted;
+
+      // Count only the change from bowl down to bowl up.
+      if (diner.stableLifted &&
+          (!diner.started || now - diner.lastBite >= 400)) {
+        if (diner.started) {
+          const unsigned long interval = now - diner.lastBite;
+
+          if (interval < WAIT_AFTER) {
+            if (diner.hasInterval) {
+              diner.averageInterval =
+                  (7UL * diner.averageInterval + 3UL * interval) / 10UL;
+            } else {
+              diner.averageInterval = interval;
+              diner.hasInterval = true;
+            }
+          } else {
+            // Start estimating again after a conversation pause.
+            diner.hasInterval = false;
+            diner.averageInterval = DEFAULT_INTERVAL;
+          }
+        }
+
+        diner.started = true;
+        diner.lastBite = now;
+        biteDetected = true;
+
+        Serial.print(i == 0 ? F("A") : F("B"));
+        Serial.println(F(" bowl lifted"));
+      }
+    }
+
+    // A diner joins the pace calculation after their first lift.
+    if (diner.started) {
+      const unsigned long idleTime = now - diner.lastBite;
+
+      if (idleTime >= WAIT_AFTER) {
+        someonePaused = true;
+      }
+
+      if (idleTime < PLAY_AFTER) {
+        everyonePaused = false;
+      }
+
+      if (diner.averageInterval > tableInterval) {
+        tableInterval = diner.averageInterval;
+      }
+    }
+  }
+
+  if (!mealStarted) {
+    if (!biteDetected) return;
+
+    mealStarted = true;
+    companionNod();
+    Serial.println(F("Companion wakes"));
+  }
+
+  if (biteDetected) {
+    playfulDone = false;
+  }
+
+  // A participating diner has paused, so stop regular nods.
+  if (someonePaused) {
+    if (!waiting) {
+      waiting = true;
+      movement = 0;
+      companionServo.write(65);
+      Serial.println(F("Waiting for the table"));
+    }
+  } else if (waiting) {
+    waiting = false;
+    movement = 0;
+    companionServo.write(90);
+    lastNod = now;
+    Serial.println(F("Eating resumes"));
+  }
+
+  // Play one wiggle after everyone participating pauses for 45 seconds.
+  if (everyonePaused && !playfulDone) {
+    playfulDone = true;
+    beep(80);
+    movement = 2;
+    movementStarted = millis();
+    Serial.println(F("Playful wiggle + chime"));
+  }
+
+  // Finish each movement using elapsed time.
+  const unsigned long elapsed = now - movementStarted;
+
+  if (movement == 1 && elapsed >= 350) {
+    companionServo.write(90);
+    movement = 0;
+  }
+
+  if (movement == 2) {
+    if (elapsed >= 1200) {
+      companionServo.write(waiting ? 65 : 90);
+      movement = 0;
+    } else {
+      companionServo.write((elapsed / 200) % 2 == 0 ? 75 : 105);
+    }
+  }
+
+  if (waiting || movement != 0) return;
+
+  // Solo mode mirrors lifts. Group mode uses the longest interval.
+  if (SOLO_MODE) {
+    if (biteDetected) companionNod();
+  } else {
+    tableInterval = max(tableInterval, 3000UL);
+
+    if (now - lastNod >= tableInterval) {
+      companionNod();
+
+      Serial.print(F("Companion interval (ms): "));
+      Serial.println(tableInterval);
+    }
+  }
 }
 
 // Roulette: spin, land on a person, play the buzzer chime
@@ -212,7 +410,66 @@ void spinRoulette() {
   Serial.println("[stub] spinRoulette()");
 }
 // ==============================================================
+// Set the companion's belly light using its current behaviour.
+void companionGlow(int pct) {
+  // Give the existing dish lantern the empty-dish display.
+  if (pct <= CLEAN_PCT) {
+    lanternGlow(pct);
+    return;
+  }
 
+  // A triangle wave gives a gentle four-second breathing cycle.
+  unsigned long phase = millis() % 4000UL;
+  int breath = phase <= 2000UL ? phase : 4000UL - phase;
+
+  int red = 255;
+  int green = 120;
+  int blue = 30;
+  int brightness;
+
+  if (!mealStarted) {
+    // Sleeping: dim, slowly breathing warm light.
+    brightness = map(breath, 0, 2000, 5, 25);
+  } else if (waiting) {
+    // Conversation pause: a soft, warm pulse.
+    green = 180;
+    blue = 100;
+    brightness = map(breath, 0, 2000, 20, 70);
+  } else {
+    bool differentPaces = false;
+
+    // Compare speeds only after both diners have usable intervals.
+    if (!SOLO_MODE &&
+        diners[0].hasInterval &&
+        diners[1].hasInterval) {
+      unsigned long faster = min(
+          diners[0].averageInterval,
+          diners[1].averageInterval);
+
+      unsigned long slower = max(
+          diners[0].averageInterval,
+          diners[1].averageInterval);
+
+      // Amber when the slower interval is over 1.5 times the faster.
+      differentPaces = slower > faster + faster / 2;
+    }
+
+    if (!differentPaces) {
+      lanternGlow(pct);
+      return;
+    }
+
+    // Soft amber cue while the servo keeps following the slower pace.
+    green = 160;
+    blue = 0;
+    brightness = 100;
+  }
+
+  // Multiply first, then divide, to retain brightness precision.
+  analogWrite(RGB_R, red * brightness / 255);
+  analogWrite(RGB_G, green * brightness / 255);
+  analogWrite(RGB_B, blue * brightness / 255);
+}
 // ---------------- Arduino ----------------
 void setup() {
   pinMode(TRIG, OUTPUT);  pinMode(ECHO, INPUT);
@@ -228,10 +485,12 @@ void setup() {
     bowls[i] = {lifted, lifted, millis(), false, 0};
   }
   Serial.begin(9600);
+  beginCompanion();
   Serial.println("Dish-level lantern ready");
 }
 
 void loop() {
+  updateCompanion();
   checkCalibrate();
 
   int pct = readDishLevel();
