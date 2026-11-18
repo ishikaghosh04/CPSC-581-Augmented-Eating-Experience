@@ -46,7 +46,7 @@ This repository is an Arduino Uno prototype, simulated in Wokwi and built with P
 
 The servo library disables PWM on pins 9 and 10, so the RGB LED stays off those pins. D10 is now an LCD data line, not a PWM output. Do not use `tone()`: it takes Timer2 and breaks PWM on D3.
 
-A5 is unused. The roulette has no physical button; every roulette action comes from the IR remote.
+A5 is unused. The roulette has no physical button; commands can come from the IR remote or the serial terminal.
 
 The 10K pot is not an input to the firmware. It only sets the LCD's `V0` contrast, so it has no effect in Wokwi (which does not simulate contrast) but matters on the real display.
 
@@ -62,7 +62,7 @@ The 74HC595 and LED bar are gone. The LCD needs six data/control pins in 4-bit p
 | `void pulseShared()` | Warm centerpiece pulse for a shared bite |
 | `void companionNod()` | Servo nod; pace matching is implemented |
 | `void spinRoulette()` | Starts a spin and assigns leftovers, dish duty, and cleanup duty, honouring immunity |
-| `void updateRoulette()` | Drives the spin/reveal animation, polls the IR remote, and refreshes the LCD |
+| `void updateRoulette()` | Drives the spin/reveal animation, polls the IR remote and serial commands, and refreshes the LCD |
 
 ## Project layout
 
@@ -116,6 +116,22 @@ Defaults are 5 cm (full) and 30 cm (empty). Replace them with measurements from 
 
 The remote's keyboard shortcuts are **+**, **-**, **1**–**5**, **P** (Play), **T** (Test), and **M** (Menu/immunity). The keys only work while the remote is focused; click it first.
 
+### Serial-terminal controls
+
+As an alternative to the IR remote, open the simulator's serial terminal (9600 baud), enter a command, and send it. The firmware reads individual characters using `pollSerialRemote()` and passes them to the same command handler as the remote.
+
+| Serial character | Action |
+| --- | --- |
+| `P` or `p` | Start roulette or re-spin when allowed |
+| `T` or `t` | Enter calibration, capture EMPTY, then capture FULL on successive commands |
+| `M` or `m` | Enter or exit immunity editing |
+| `+` | Add the lowest inactive player |
+| `-` | Remove the highest active player |
+| `1`–`5` | Toggle roster membership, or toggle immunity while editing immunity |
+
+Send one command at a time. Newline and carriage-return characters are ignored. Serial commands follow the same restrictions as IR commands: for example, Play is ignored during the roll and during immunity editing or calibration. Sending commands does not require focusing the simulated IR remote.
+
+
 ## Shared-bite glow
 
 The firmware uses two bowl sensors and one RGB LED. The current settings are `SYNC_MS = 20000`, `PULSE_MS = 900`, and `STABLE_MS = 45`. A pending lift expires at exactly 20 seconds, so group lifts must be less than 20 seconds apart. Each successful pair consumes both pending events. Holding a bowl up generates one lift event.
@@ -130,7 +146,7 @@ The firmware uses two bowl sensors and one RGB LED. The current settings are `SY
 
 Use a dish level above 5% and finish any roulette animation when checking the visible pulse. A shared pulse rises over 180 ms and fades over the remainder of its 900 ms duration. While roulette is active, bowl states and pulse triggers still update, but roulette owns the RGB LED. At or below the clean-dish threshold, the shared pulse is visually suppressed.
 
-**The slide switch controls glow mode.** Companion pacing uses the separate `SOLO_MODE` constant, currently `false`. To test the companion with only bowl A, set that constant to `true`, rebuild, and restart.
+**Mode behavior in this snapshot:** The A4 slide switch sets `soloMode`, which controls shared-bite glow and the companion's immediate-lift versus timed-nod branch. A separate constant, `solomode = false`, still controls whether the companion reads one or two diners and whether amber pace comparison is enabled. These names are case-sensitive and refer to different variables. Consequently, selecting solo on the switch does not make the companion fully A-only: bowl B remains tracked with the current constant. This inconsistency remains in the source and needs a code change for one consistent mode setting.
 
 ### Earlier observed integration test
 
@@ -170,13 +186,13 @@ PlatformIO installs Servo, LiquidCrystal, and IRremote from the dependencies dec
 - An ultrasonic echo timeout is represented as 400 cm. During normal dish-level readings, a timeout can therefore appear as an empty dish and trigger an armed clean-dish celebration.
 - A shared pulse can be logged during roulette while its visible RGB output is suppressed. The pulse timer still starts at that lift event and can expire before roulette ends.
 - Bowl sensing updates during roulette, but the companion reads only the latest bowl state afterward. A complete lift-and-return during roulette can be missed by the companion.
-- Roulette starts only from the remote Play command. A low dish level does not automatically start a spin.
+- Roulette starts only from a Play command (IR remote or serial `P`/`p`). A low dish level does not automatically start a spin.
 - Remote repeat frames are ignored. Exit immunity editing with M before using Play or Test. Calibration must finish before starting a spin.
 - The LCD replaced the LED bar, so the bar itself is no longer part of the prototype. Dish level is shown as text.
 - Only one RGB LED is used. The second RGB LED in the kit would need three more PWM pins.
 - The roulette roster supports up to five players, but the companion still senses only two bowls.
 - Wokwi does not simulate the LCD's `V0` contrast input, so the contrast pot only has a visible effect on real hardware.
-- The roulette is remote-only. Without the IR remote (or a phone IR blaster) there is no way to start a spin.
+- The roulette accepts IR remote commands or serial-terminal characters. There is no physical roulette button.
 - The command codes match Wokwi's IR remote. A different physical remote sends different codes; watch the `IR:` lines in the serial monitor and update `IR_CMD_*` and `IR_NUMBER_CMD`.
 - Immunity and the roster are held in RAM and cleared on reset. Removing a player also clears that player's immunity, and the firmware keeps at least one active player non-immune.
 
@@ -200,9 +216,9 @@ The companion behaviour is implemented in `src/main.cpp`. The checks below descr
 - **Pacing:** In the default two-diner mode, the companion uses the longest measured interval among participating diners, with a 3000 ms minimum. It estimates an interval from bowl lifts and nudges toward a slower eater. A second lift within 400 ms of the previous lift is ignored.
 - **Amber cue:** After both diners have usable intervals, the RGB LED turns soft amber if the slower interval is more than 1.5 times the faster interval. The servo continues following the longer interval.
 - **Conversation pause:** If one participating diner has been idle for 20 seconds, the companion stops regular nods, holds the servo at 65 degrees, prints `Waiting for the table`, and gives the RGB LED a softer warm pulse.
-- **Playful wiggle and chime:** When all participating diners have been idle for 45 seconds, the code attempts a 1.2-second wiggle between 75 and 105 degrees and an 80 ms beep, and prints `Playful wiggle + chime`. The movement timestamp issue below can prematurely end this wiggle. It performs this wiggle once until another bite resets the condition.
+- **Playful wiggle and chime:** When all participating diners have been idle for 45 seconds, the code performs a 1.2-second wiggle between 75 and 105 degrees and an 80 ms beep, and prints `Playful wiggle + chime`. Elapsed movement time now uses a fresh `millis()` reading after the beep, correcting the earlier timestamp underflow issue. It performs this wiggle once until another bite resets the condition.
 - **Resuming:** When no diner is paused, the companion returns the servo to 90 degrees, resumes the normal pace, and prints `Eating resumes`.
-- **Solo mode:** Set `SOLO_MODE` to `true` to read only bowl A and nod immediately after each detected lift. It is currently `false`, so the default is two-diner mode.
+- **Mode selection:** With `solomode = false`, both diners are tracked. The A4 switch controls the separate `soloMode` variable: when true, the companion nods on a detected lift; when false, it uses the longest table interval. Because both diners are still tracked, bowl B can also cause an immediate companion nod with the switch in solo mode. Amber comparison still uses `solomode`, so it is not disabled by the switch.
 
 The dish-clean threshold is evaluated separately: when the dish level is 5% or below, `companionGlow()` gives control to the dish lantern instead of the companion breathing or amber behaviour.
 
@@ -236,9 +252,9 @@ The `10 -> 500 -> 10` sequence represents a bowl down, lifted, then returned. Th
 | Lift bowl A (`10 -> 500 -> 10`, about 1 second per position) | 110 degrees for 350 ms, then 90 | Normal dish glow or companion state | `A bowl lifted`, then `Companion wakes` |
 | Lift bowl B the same way | Registers B; the next regular nod follows the table interval | Amber may appear after both diners have usable intervals | `B bowl lifted` |
 | Leave one diner idle for 20 seconds | Moves or holds at 65 degrees | Soft warm pulse | `Waiting for the table` |
-| Leave all participating diners idle for 45 seconds | Intended 75/105-degree wiggle; verify the timestamp limitation below | Waiting pulse remains if paused | 80 ms buzzer toggle and `Playful wiggle + chime` |
+| Leave all participating diners idle for 45 seconds | 75/105-degree wiggle for about 1.2 seconds | Waiting pulse remains if paused | 80 ms buzzer toggle and `Playful wiggle + chime` |
 | Resume bowl lifts after a pause | Returns to 90 degrees, then resumes measured nods | Normal pace or amber cue | `Eating resumes`, bowl lift message |
-| Set `SOLO_MODE = true`, rebuild, and lift bowl A | Nods immediately with each detected lift | Amber pacing comparison is disabled | `A bowl lifted` |
+| Move the A4 switch to solo; lift A, then separately lift B | Immediate nods can respond to either tracked bowl with `solomode = false` | Solo glow is A-only; amber companion comparison can still occur | Bowl lift message; `Solo glow` for A |
 
 These are the expected state transitions from the implementation. The 20-second, 45-second, and interval transitions depend on timing and must be watched in the simulator to verify.
 
@@ -246,7 +262,8 @@ These are the expected state transitions from the implementation. The 20-second,
 
 | Setting | Current value | Effect |
 | --- | ---: | --- |
-| `SOLO_MODE` | `false` | `false` reads bowls A and B; `true` reads only bowl A |
+| `solomode` | `false` | Companion diner count and amber comparison: false tracks A and B; true tracks only A |
+| `soloMode` | A4 switch; initially group in the supplied diagram | Shared glow mode and companion immediate-lift versus timed-nod branch; separate from `solomode` |
 | `DEFAULT_INTERVAL` | 6000 ms | Starting interval used if no measured interval is available |
 | `WAIT_AFTER` | 20000 ms | Idle time that enters conversation-pause state |
 | `PLAY_AFTER` | 45000 ms | Idle time that allows the playful wiggle |
@@ -267,8 +284,8 @@ These are the expected state transitions from the implementation. The 20-second,
 - Bowl-lift detection uses `analogRead()`. `serviceSharedGlow()` calls `pulseShared()` when both bowls are lifted within `SYNC_MS`, and the pulse lights the RGB LED only while the dish is above the clean threshold and roulette is inactive.
 - The companion servo is on D9, and roulette reserves its pose during animation. `writeServo()` mutes companion movements while `rouletteActive` is true, and the roulette never moves the servo itself, so the pet holds still through the spin and reveals.
 - The LCD uses the built-in `LiquidCrystal` library in 4-bit mode. The IR receiver uses `TinyIRReceiver` from the `IRremote` library. It uses pin-change interrupts without claiming a hardware timer. The main loop polls decoded remote commands; blocking work can still delay command handling.
-- Calibration runs from the remote's **Test** key and captures EMPTY before FULL. The success message flashes for 3 seconds.
-- Roster and immunity editing are remote-only. **Menu (M)** opens immunity edit mode; numbers toggle immunity there and roster membership outside it. A toggle that would make everyone immune is refused with a 4-second flashing warning.
+- Calibration runs from the remote's **Test** key or serial `T`/`t` and captures EMPTY before FULL. The success message flashes for 3 seconds.
+- Roster and immunity editing accept IR or serial commands. **Menu (M)** opens immunity edit mode; numbers toggle immunity there and roster membership outside it. A toggle that would make everyone immune is refused with a 4-second flashing warning.
 
 ### Known companion limitations
 
@@ -276,7 +293,8 @@ These are the expected state transitions from the implementation. The 20-second,
 - Bowl-lift intervals depend on the 400 ms duplicate guard and 80 ms sensor debounce, so very quick or noisy movements may be missed.
 - Only one interval estimate is maintained for each diner, using a 70/30 weighted moving average after the first measured interval.
 - After the 20-second pause threshold, existing intervals are reset to the default if a later lift is detected after `WAIT_AFTER`.
-- The 45-second wiggle triggers once per `playfulDone` reset; a new bite sets `playfulDone = false`. In this snapshot, `now` is captured before `beep(80)`, while `movementStarted` is set afterward. Subtracting the newer timestamp from the older one can underflow and finish the wiggle immediately. This requires a fresh timestamp when calculating elapsed movement time.
+- The companion uses two separate mode variables, `solomode` and `soloMode`. The switch changes only the latter, so sensing, amber comparison, and nod scheduling can use different mode assumptions. See the mode explanation above.
+- The earlier playful-wiggle timestamp bug has been corrected with `millis() - movementStarted`. The full 45-second idle sequence still needs a fresh simulation check on this version.
 - `beep()` and the dish-level `chime()` use blocking delays, and `medianDistance()` also blocks briefly. This can delay servo and serial timing.
 - Calibration and companion state remain in memory and are lost after reset.
 - The roulette holds the outputs for about 9 seconds. Bowl sensors keep updating, but the companion and ultrasonic readings pause until the reveal ends. The dish percentage remains at its last measured value during that interval.
@@ -285,7 +303,7 @@ These are the expected state transitions from the implementation. The 20-second,
 
 ## Leftover Roulette
 
-The roulette turns the end of a shared meal into a short, playful ceremony. One press assigns three roles: **leftovers** (the prize), **dish duty**, and **cleanup duty**. The remote manages the roster, and the LCD shows each role as it is revealed.
+The roulette turns the end of a shared meal into a short, playful ceremony. One press assigns three roles: **leftovers** (the prize), **dish duty**, and **cleanup duty**. The remote or serial commands manage the roster, and the LCD shows each role as it is revealed.
 
 ### Physical interaction
 
@@ -350,7 +368,7 @@ Immunity protects a player from dish duty and cleanup duty, not from the leftove
 - Wire the 10K pot as the LCD contrast control: ends to 5V and GND, wiper to `V0`. Connect the LCD backlight `A` to 5V and `K` to GND.
 - Wire the IR receiver: `VCC` to 5V, `GND` to GND, `DAT` to A3.
 - Use the **passive** buzzer on D13.
-- There is no roulette button. The IR remote is the only control; A5 is unused.
+- There is no roulette button. Use the IR remote or serial-terminal commands; A5 is unused.
 - The companion servo is on D9. `writeServo()` mutes companion movements while the roulette is active, and the roulette never writes the servo, so the pet holds still through the spin and reveals and only resumes its own behaviour afterwards. `serviceSharedGlow()` keeps polling the bowl sensors but leaves the RGB LED to the roulette.
 
 
