@@ -109,8 +109,8 @@ Defaults are 5 cm (full) and 30 cm (empty). Replace them with measurements from 
 1. Start the simulator and click the IR remote once so keyboard shortcuts go to it.
 2. Press **+** twice to fill the roster to four players, **-** to remove one, or **1**–**5** to toggle a specific player. Players are labelled P1–P5 on the LCD.
 3. Press **M** to enter immunity mode. The LCD shows `Imm 1-5  M=done` and `Imm:none`. Press **2** and **4** to make P2 and P4 immune (`Imm:P2P4`), then press **M** again to exit. The idle screen now shows `Imm:2`. Re-enter the mode any time to rewrite the set. Trying to make the last non-immune player immune fails: the LCD flashes `Immunity denied` / `1 must stay free` for 4 seconds and the setting does not change.
-4. Press **P** (Play). The RGB LED cycles colours, the LCD shows a moving marker, and the buzzer ticks for about 2.4 seconds. The servo stays still during the roll.
-5. The LCD reveals `Dish duty`, `Cleanup duty`, then `Leftovers`, each with `Player Pn`, a solid RGB colour, and a beep. The servo points at the selected player. Immune players are never assigned dish or cleanup duty while a non-immune player is available.
+4. Press **P** (Play). The RGB LED cycles colours, the LCD shows a moving marker, and the buzzer ticks for about 2.4 seconds. The servo does not move at all during the roulette.
+5. The LCD reveals `Dish duty`, `Cleanup duty`, then `Leftovers`, each with `Player Pn`, a solid RGB colour, and a beep. Immune players are never assigned dish or cleanup duty while a non-immune player is available.
 6. Press **P** during a reveal to re-spin. When the result screen is showing, press **P** again for a fresh spin.
 7. With two players, the two duties are drawn independently, so the leftovers winner can also get dish duty, cleanup duty, or both. With three or more, the roles go to different people unless immunity leaves only one eligible player.
 
@@ -221,7 +221,7 @@ These are the expected state transitions from the implementation. The 20-second,
 - `companionGlow()` and the existing dish lantern both write to D3/D5/D6. Companion behaviour replaces dish warmth while the dish is above 5%, except when pace is equal and `lanternGlow(pct)` is used.
 - `beep()` and the dish chime share D13. The playful wiggle calls `beep(80)`; the companion must therefore coexist with `chime()` without changing shared buzzer ownership.
 - Bowl-lift detection uses `analogRead()`. `serviceSharedGlow()` calls `pulseShared()` when both bowls are lifted within `SYNC_MS`, and the pulse lights the RGB LED only while the dish is above the clean threshold.
-- The companion servo and Leftover Roulette share D9. `writeServo()` mutes companion movements while `rouletteActive` is true, and the roulette points the servo at each revealed player.
+- The companion servo and Leftover Roulette share D9. `writeServo()` mutes companion movements while `rouletteActive` is true, and the roulette never moves the servo itself, so the pet holds still through the spin and reveals.
 - The LCD uses the built-in `LiquidCrystal` library in 4-bit mode. The IR receiver uses `TinyIRReceiver` from the `IRremote` library, which uses pin-change interrupts and no hardware timer, so it is not disturbed by `analogWrite()` or the buzzer.
 - Calibration runs from the remote's **Test** key and captures EMPTY before FULL. The success message flashes for 3 seconds.
 - Roster and immunity editing are remote-only. **Menu (M)** opens immunity edit mode; numbers toggle immunity there and roster membership outside it. A toggle that would make everyone immune is refused with a 4-second flashing warning.
@@ -255,7 +255,7 @@ The roulette turns the end of a shared meal into a short, playful ceremony. One 
 | RGB LED | Cycles through colours during the roll, then shows a solid colour per role: blue for dish, green for cleanup, gold for leftovers. |
 | LCD | Shows `Dish N%`, the P1–P5 roster and the immunity count while idle, the immunity set while editing, a moving marker during the roll, then the role and player for each reveal, followed by a summary. |
 | Buzzer | Ticks during the roll and beeps at each reveal. |
-| Servo | Stays still during the roll, then points at the selected player during each reveal. It returns to 90 degrees when the result is done. |
+| Servo | Does not move during the roulette. The spin and every reveal are shown on the LCD and RGB LED, so the pet keeps its companion pose. |
 
 Immunity protects a player from dish duty and cleanup duty, not from the leftovers prize. At least one active player must stay non-immune: a toggle that would make everyone immune fails, leaves the setting unchanged, and flashes `Immunity denied` / `1 must stay free` for 4 seconds. Removing a player clears that player's immunity, and if a removal would leave everyone immune, the firmware clears the highest active player's immunity. Enter immunity mode again to rewrite the set.
 
@@ -278,11 +278,11 @@ Immunity protects a player from dish duty and cleanup duty, not from the leftove
 2. Click the IR remote once. The LCD shows `Dish N%` and `P1 P2 P=spin`. The spin hint only fits when three or fewer players are active.
 3. Press **+** to add P3, then **4** to add P4, then **5** to add P5. Press **-** or a number to remove one. The serial monitor prints `Players: N (P1 P2 ...)`.
 4. Press **M**. The LCD shows `Imm 1-5  M=done` and `Imm:none`. Press **2** and **4**; the second line becomes `Imm:P2P4`. Press **M** again to exit; the idle screen shows `Imm:2`.
-5. Press **P**. The RGB LED cycles colours, the LCD shows a moving marker, and the buzzer ticks for about 2.4 seconds. The servo stays still.
+5. Press **P**. The RGB LED cycles colours, the LCD shows a moving marker, and the buzzer ticks for about 2.4 seconds. The servo does not move.
 6. Watch the reveal. The LCD shows one role at a time and the serial monitor prints them, chores first and the prize last:
    - `Dish duty` / `Player P3` with blue light.
    - `Cleanup duty` / `Player P5` with green light.
-   - `Leftovers` / `Player P2` with gold light and the servo pointing at the winner. P2 can win the prize even while immune, but never appears as dish or cleanup here.
+   - `Leftovers` / `Player P2` with gold light. P2 can win the prize even while immune, but never appears as dish or cleanup here.
 7. Press **P** during a reveal to re-spin. Wait for the final summary and press **P** again.
 8. Re-enter immunity mode with **M**, press **2**, then **M** to clear P2's immunity. Spin again: P2 can now receive a duty. With three or four players and one immune player, that player never appears as dish or cleanup while another eligible player exists. If only one player is eligible, both duties land on that player.
 9. Try to make everyone immune: with five players active, make four of them immune, then press the remaining number. The LCD flashes `Immunity denied` / `1 must stay free` for 4 seconds, returns to the edit screen, and the player stays non-immune (`Imm:4`).
@@ -298,7 +298,6 @@ Immunity protects a player from dish duty and cleanup duty, not from the leftove
 | `ROULETTE_REVEAL_MS` | 2000 / 2000 / 2600 ms | Time spent on dish duty, cleanup duty, and leftovers. |
 | `CAL_DONE_MS` | 3000 ms | How long the calibration success message flashes. |
 | `IMM_FAIL_MS` | 4000 ms | How long the failed-immunity warning flashes. |
-| Servo angles | 30–150 degrees | `playerAngle()` spreads the active players across the pointer arc. |
 | LCD summary hold | 8000 ms | How long the final result stays on screen before the dish screen returns. |
 
 ### Wiring on real hardware
@@ -308,5 +307,5 @@ Immunity protects a player from dish duty and cleanup duty, not from the leftove
 - Wire the IR receiver: `VCC` to 5V, `GND` to GND, `DAT` to A3.
 - Use the **passive** buzzer on D13.
 - There is no roulette button. The IR remote is the only control; A5 is unused.
-- The roulette shares D9 with the companion. `writeServo()` mutes companion movements while the roulette is active, and `serviceSharedGlow()` keeps polling the bowl sensors but leaves the RGB LED to the roulette.
+- The roulette shares D9 with the companion. `writeServo()` mutes companion movements while the roulette is active, and the roulette never writes the servo, so the pet holds still through the spin and reveals and only resumes its own behaviour afterwards. `serviceSharedGlow()` keeps polling the bowl sensors but leaves the RGB LED to the roulette.
 

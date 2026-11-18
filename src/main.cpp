@@ -589,8 +589,8 @@ unsigned long movementStarted = 0;
 // 0 = still, 1 = nodding, 2 = playful wiggle
 uint8_t movement = 0;
 
-// The roulette borrows the servo as a pointer during the reveal, so companion
-// writes are muted while a spin or reveal is on screen.
+// The roulette leaves the servo alone, so companion writes are muted while a
+// spin or reveal is on screen.
 void writeServo(int angle)
 {
   if (!rouletteActive)
@@ -1183,21 +1183,6 @@ uint8_t rouletteRolePlayer(uint8_t phase)
   return rouletteLeftovers;
 }
 
-// Spread the active players across the pointer arc (30..150 degrees).
-uint8_t playerAngle(uint8_t slot)
-{
-  uint8_t list[MAX_PLAYERS];
-  const uint8_t n = buildActiveList(list);
-  if (n <= 1)
-    return 90;
-
-  for (uint8_t i = 0; i < n; ++i)
-    if (list[i] == slot)
-      return 30 + (i * 120) / (n - 1);
-
-  return 90;
-}
-
 void setRouletteColor(int red, int green, int blue)
 {
   analogWrite(RGB_R, red);
@@ -1212,7 +1197,6 @@ void enterRevealPhase(uint8_t phase)
   roulettePhaseStarted = millis();
 
   const uint8_t who = rouletteRolePlayer(phase);
-  companionServo.write(playerAngle(who));
 
   lcdMode = LCD_REVEAL;
   lcdWriteLine(0, phase == 0 ? "Dish duty" : phase == 1 ? "Cleanup duty"
@@ -1247,7 +1231,9 @@ void finishRoulette()
 {
   rouletteState = ROULETTE_IDLE;
   rouletteActive = false;
-  companionServo.write(90);
+  // The roulette never moved the servo. Drop any nod it interrupted so the
+  // companion cannot finish a stale movement after the result appears.
+  movement = 0;
 
   lcdMode = LCD_SUMMARY;
   lcdSummaryUntil = millis() + 8000;
