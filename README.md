@@ -1,13 +1,19 @@
 # Pass It On
 
-A centerpiece dish that glows when the table eats together, keeps everyone at the same pace, and makes sure nothing ends up in the trash.
+Pass It On is an interactive centerpiece for a shared meal. It combines a pace-matching companion, shared-bite lighting, a dish-level lantern, and a proposed Leftover Roulette interaction. Together, these features explore how physical computing can support companionship, awareness of the shared meal, and taking care of remaining food.
+
+The companion is a small tabletop creature that responds through head movements, coloured light, and sound. Bowl lifts provide signals that represent eating activity. With two diners, the companion uses the slower estimated rhythm to determine its nodding pace. When a participating diner pauses, the companion tilts its head and waits. After a longer pause involving everyone, it gives one playful movement and sound.
+
+The dish-level lantern gives the table a shared sense of how much food is left, without singling anyone out. An ultrasonic sensor mounted on the centerpiece measures the distance down to the food in the shared bowl, and that distance becomes a group meter. “Plenty left” glows warm and full. As the dish empties, the glow softens. When the dish is clean, the table gets a short chime. The design goal was to make finishing the food feel like a small celebration, so that less food ends up in the trash, and to avoid any per-person tracking or comparison.
+
+The intended physical form places a servo behind the creature’s head and an RGB LED inside its body. The current prototype represents these components in Wokwi. Whether the experience improves companionship or reduces food waste remains a question for future evaluation.
 
 This repository is an Arduino Uno prototype, simulated in Wokwi and built with PlatformIO.
 
 ## The product
 
 | Feature | What it does | Hardware |
-|---|---|---|
+| --- | --- | --- |
 | **Shared-bite glow** | When diners lift their bowls within a few seconds of each other, the centerpiece pulses warm for everyone. If you eat alone, it pulses with your bites. Nobody is compared; it only rewards synchrony. | 2 photoresistors, RGB LED |
 | **Pace-matching companion** | A servo buddy nods along with bites but matches the slowest eater. If someone pauses to talk, it waits and the lights soften. | Servo |
 | **Dish-level lantern** | An ultrasonic sensor over the shared dish drives an LED bar and the lantern's warmth. "Plenty left" glows full, "nearly done" softens, and a clean dish gets a celebration chime. It is a group meter, not per person. | HC-SR04, 74HC595 + LED bar, RGB LED, buzzer |
@@ -16,7 +22,7 @@ This repository is an Arduino Uno prototype, simulated in Wokwi and built with P
 ### Status
 
 | Part | State |
-|---|---|
+| --- | --- |
 | Dish-level lantern | Implemented in `src/main.cpp` |
 | Shared-bite glow | Stub (`bowlLifted`, `pulseShared`) |
 | Bowl-lift detection | Implemented in `bowlLifted(int i)` |
@@ -26,7 +32,7 @@ This repository is an Arduino Uno prototype, simulated in Wokwi and built with P
 ## Pin map (team contract)
 
 | Part | Pin |
-|---|---|
+| --- | --- |
 | Ultrasonic TRIG / ECHO | D2 / D4 |
 | Centerpiece RGB LED (R/G/B) | D3 / D5 / D6 (PWM) |
 | 74HC595 LED bar (data/latch/clock) | D7 / D8 / D12 |
@@ -42,7 +48,7 @@ The servo library disables PWM on pins 9 and 10, so the RGB LED stays off those 
 ## Function contract
 
 | Function | Returns / does |
-|---|---|
+| --- | --- |
 | `int readDishLevel()` | Dish fullness, 0 to 100 |
 | `bool bowlLifted(int i)` | True when bowl `i` is lifted; implemented |
 | `void showLevel(int pct)` | Shows the level on the LED bar |
@@ -68,6 +74,7 @@ src/main.cpp     Firmware
 3. Install the **Wokwi Simulator** extension.
 4. Run **Wokwi: Request a New License** from the command palette (Ctrl+Shift+P, or Cmd+Shift+P on Mac) and follow the browser prompts. The license is free.
 5. Apple Silicon Macs only: install Rosetta so the AVR compiler can run.
+
    ```
    softwareupdate --install-rosetta --agree-to-license
    ```
@@ -105,7 +112,7 @@ Defaults are 5 cm (full) and 30 cm (empty). Replace them with measurements from 
 ## Troubleshooting
 
 | Problem | Fix |
-|---|---|
+| --- | --- |
 | No checkmark in the status bar | PlatformIO has not loaded. Open the folder that contains `platformio.ini` and wait for the extension to finish. |
 | Wokwi cannot find the firmware | The build did not finish, or the paths in `wokwi.toml` are wrong. Check that `.pio/build/uno/firmware.hex` exists. |
 | A wire or part is missing in the simulator | A pin name in `diagram.json` is wrong. Hover over the pin in Wokwi to see its exact name. |
@@ -131,7 +138,7 @@ The dish-clean threshold is evaluated separately: when the dish level is 5% or b
 ### Relevant hardware and pins
 
 | Item | Pin or value |
-|---|---|
+| --- | --- |
 | Companion servo | D9, 90 degrees at rest |
 | Bowl A photoresistor | A0 |
 | Bowl B photoresistor | A1 |
@@ -153,7 +160,7 @@ This `10 -> 400 -> 10` sequence is needed because 10 lux initially represents th
 ### Test table
 
 | Action | Expected servo movement | Expected light | Sound / serial output |
-|---|---:|---|---|
+| --- | ---: | --- | --- |
 | Start simulator; no bowl lift | Rest at 90 degrees | Dim warm breathing | `Companion ready`, then `Dish-level lantern ready` |
 | Lift bowl A (`10 -> 400 -> 10`, about 1 second per position) | 110 degrees for 350 ms, then 90 | Normal dish glow or companion state | `A bowl lifted`, then `Companion wakes` |
 | Lift bowl B the same way | 110 degrees for 350 ms, then 90 | Amber may appear after both diners have usable intervals | `B bowl lifted` |
@@ -167,7 +174,7 @@ These are the expected state transitions from the implementation. The 20-second,
 ### Adjustable settings
 
 | Setting | Current value | Effect |
-|---|---:|---|
+| --- | ---: | --- |
 | `SOLO_MODE` | `false` | `false` reads bowls A and B; `true` reads only bowl A |
 | `DEFAULT_INTERVAL` | 6000 ms | Starting interval used if no measured interval is available |
 | `WAIT_AFTER` | 20000 ms | Idle time that enters conversation-pause state |
