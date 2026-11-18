@@ -119,17 +119,9 @@ void waitWithGlow(unsigned long duration)
 // Do not use tone(): it takes Timer2 and breaks PWM on D3.
 void beep(unsigned int ms)
 {
-  const unsigned long start = millis();
-  uint8_t cycles = 0;
-  while (millis() - start < ms)
-  {
-    digitalWrite(BUZZER, HIGH);
-    delayMicroseconds(250);
-    digitalWrite(BUZZER, LOW);
-    delayMicroseconds(250);
-    if (++cycles % 8 == 0)
-      serviceSharedGlow();
-  }
+  digitalWrite(BUZZER, HIGH);
+  waitWithGlow(ms);
+  digitalWrite(BUZZER, LOW);
 }
 
 void chime()
