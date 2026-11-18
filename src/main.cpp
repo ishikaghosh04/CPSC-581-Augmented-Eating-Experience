@@ -558,7 +558,7 @@ void serviceSharedGlow()
 Servo companionServo;
 
 // false = two diners; true = solo demo using bowl A
-const bool SOLO_MODE = false;
+const bool solomode = false;
 
 const unsigned long DEFAULT_INTERVAL = 6000;
 const unsigned long WAIT_AFTER = 20000;
@@ -625,7 +625,7 @@ void beginCompanion()
 void updateCompanion()
 {
   const unsigned long now = millis();
-  const int dinerCount = SOLO_MODE ? 1 : 2;
+  const int dinerCount = solomode ? 1 : 2;
 
   bool biteDetected = false;
   bool someonePaused = false;
@@ -755,7 +755,7 @@ void updateCompanion()
   }
 
   // Finish each movement using elapsed time.
-  const unsigned long elapsed = now - movementStarted;
+  const unsigned long elapsed = millis() - movementStarted;
 
   if (movement == 1 && elapsed >= 350)
   {
@@ -780,7 +780,7 @@ void updateCompanion()
     return;
 
   // Solo mode mirrors lifts. Group mode uses the longest interval.
-  if (SOLO_MODE)
+  if (soloMode)
   {
     if (biteDetected)
       companionNod();
@@ -836,7 +836,7 @@ void companionGlow(int pct)
     bool differentPaces = false;
 
     // Compare speeds only after both diners have usable intervals.
-    if (!SOLO_MODE &&
+    if (!solomode &&
         diners[0].hasInterval &&
         diners[1].hasInterval)
     {
@@ -1360,7 +1360,45 @@ void handleRemoteCommand(uint8_t command)
     }
   }
 }
+void pollSerialRemote()
+{
+  if (Serial.available() == 0)
+    return;
 
+  const int key = Serial.read();
+
+  if (key >= '1' && key <= '5')
+  {
+    handleRemoteCommand(IR_NUMBER_CMD[key - '1']);
+    return;
+  }
+
+  switch (key)
+  {
+    case 'p':
+    case 'P':
+      handleRemoteCommand(IR_CMD_PLAY);
+      break;
+
+    case 't':
+    case 'T':
+      handleRemoteCommand(IR_CMD_TEST);
+      break;
+
+    case 'm':
+    case 'M':
+      handleRemoteCommand(IR_CMD_MENU);
+      break;
+
+    case '+':
+      handleRemoteCommand(IR_CMD_PLUS);
+      break;
+
+    case '-':
+      handleRemoteCommand(IR_CMD_MINUS);
+      break;
+  }
+}
 void pollRemote()
 {
   if (!TinyIRReceiverDecode())
@@ -1380,6 +1418,7 @@ void pollRemote()
 void updateRoulette()
 {
   pollRemote();
+  pollSerialRemote();
 
   if (!rouletteActive)
     return;
